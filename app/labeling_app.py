@@ -13,12 +13,22 @@ from PIL import Image, ImageDraw, ImageTk
 
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+DEFAULT_CLASSES = ["object", "person", "car", "truck", "bus", "bicycle", "dog", "cat", "bird", "fruit", "plant"]
 YOLO_MODEL_VERSIONS = [
+    "yolov3",
+    "yolov3-spp",
+    "yolov4",
     "yolov5n",
     "yolov5s",
     "yolov5m",
     "yolov5l",
     "yolov5x",
+    "yolov6n",
+    "yolov6s",
+    "yolov6m",
+    "yolov6l",
+    "yolov7",
+    "yolov7-tiny",
     "yolov8n",
     "yolov8s",
     "yolov8m",
@@ -72,6 +82,8 @@ class LabelingApp(tk.Tk):
         self.current_image_size: Tuple[int, int] = (0, 0)
 
         self.model_var = tk.StringVar(value="yolov8n")
+        self.class_name_var = tk.StringVar(value="object")
+        self.class_id_var = tk.IntVar(value=0)
         self.direction_var = tk.StringVar(value="N")
         self.show_direction_var = tk.BooleanVar(value=True)
 
@@ -99,11 +111,12 @@ class LabelingApp(tk.Tk):
 
         action_frame = ttk.Frame(left_panel)
         action_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-        action_frame.grid_columnconfigure((0, 1, 2), weight=1)
+        action_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
         ttk.Button(action_frame, text="Load folders", command=self._load_folders).grid(row=0, column=0, sticky="ew", padx=(0, 4))
         ttk.Button(action_frame, text="Add images", command=self._add_images).grid(row=0, column=1, sticky="ew", padx=4)
-        ttk.Button(action_frame, text="Remove selected", command=self._remove_selected).grid(row=0, column=2, sticky="ew", padx=(4, 0))
+        ttk.Button(action_frame, text="Remove selected", command=self._remove_selected).grid(row=0, column=2, sticky="ew", padx=4)
+        ttk.Button(action_frame, text="Delete file", command=self._delete_selected_file).grid(row=0, column=3, sticky="ew", padx=(4, 0))
 
         center_panel = ttk.Frame(self, padding=(0, 10, 10, 10))
         center_panel.grid(row=0, column=1, sticky="nsew")
@@ -124,18 +137,25 @@ class LabelingApp(tk.Tk):
 
         ttk.Label(right_panel, text="Annotation settings", font=("Segoe UI", 12, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 10))
 
-        ttk.Label(right_panel, text="Model version").grid(row=1, column=0, sticky="w")
+        ttk.Label(right_panel, text="Object class name").grid(row=1, column=0, sticky="w")
+        class_combo = ttk.Combobox(right_panel, textvariable=self.class_name_var, values=DEFAULT_CLASSES, state="normal")
+        class_combo.grid(row=2, column=0, sticky="ew")
+        ttk.Label(right_panel, text="Class ID").grid(row=3, column=0, sticky="w", pady=(8, 0))
+        class_id_spin = ttk.Spinbox(right_panel, from_=0, to=100, textvariable=self.class_id_var, width=10)
+        class_id_spin.grid(row=4, column=0, sticky="w")
+
+        ttk.Label(right_panel, text="Model version").grid(row=5, column=0, sticky="w", pady=(12, 0))
         model_combo = ttk.Combobox(right_panel, textvariable=self.model_var, values=YOLO_MODEL_VERSIONS, state="readonly")
-        model_combo.grid(row=2, column=0, sticky="ew")
+        model_combo.grid(row=6, column=0, sticky="ew")
 
-        ttk.Label(right_panel, text="Direction").grid(row=3, column=0, sticky="w", pady=(12, 0))
+        ttk.Label(right_panel, text="Direction").grid(row=7, column=0, sticky="w", pady=(12, 0))
         direction_combo = ttk.Combobox(right_panel, textvariable=self.direction_var, values=list(DIRECTION_TO_ARROW.keys()), state="readonly")
-        direction_combo.grid(row=4, column=0, sticky="ew")
+        direction_combo.grid(row=8, column=0, sticky="ew")
 
-        ttk.Checkbutton(right_panel, text="Show direction overlay", variable=self.show_direction_var).grid(row=5, column=0, sticky="w", pady=(10, 0))
+        ttk.Checkbutton(right_panel, text="Show direction overlay", variable=self.show_direction_var).grid(row=9, column=0, sticky="w", pady=(10, 0))
 
         self.annotation_info = tk.StringVar(value="No annotation yet")
-        ttk.Label(right_panel, textvariable=self.annotation_info, wraplength=240, justify="left").grid(row=6, column=0, sticky="w", pady=(18, 10))
+        ttk.Label(right_panel, textvariable=self.annotation_info, wraplength=240, justify="left").grid(row=10, column=0, sticky="w", pady=(18, 10))
 
         btns = [
             ("Save annotation", self._save_annotation),
@@ -144,7 +164,7 @@ class LabelingApp(tk.Tk):
             ("Auto label (best.pt)", self._auto_label_with_best_pt),
             ("Export YOLO labels", self._export_labels),
         ]
-        for row, (text, command) in enumerate(btns, start=7):
+        for row, (text, command) in enumerate(btns, start=11):
             ttk.Button(right_panel, text=text, command=command).grid(row=row, column=0, sticky="ew", pady=4)
 
         ttk.Separator(right_panel, orient="horizontal").grid(row=row + 1, column=0, sticky="ew", pady=(12, 10))
@@ -228,6 +248,29 @@ class LabelingApp(tk.Tk):
 
         if current_path in self.current_annotation:
             self.current_annotation.pop(current_path, None)
+
+    def _delete_selected_file(self) -> None:
+        if not self.image_paths:
+            return
+
+        target_path = self.image_paths[self.current_index]
+        confirm = messagebox.askyesno("Delete image", f"{os.path.basename(target_path)}를 실제 파일에서 삭제할까요?")
+        if not confirm:
+            return
+
+        try:
+            if os.path.exists(target_path):
+                os.remove(target_path)
+                json_path = self._annotation_file_path(target_path)
+                txt_path = self._label_file_path(target_path)
+                for path in [json_path, txt_path]:
+                    if os.path.exists(path):
+                        os.remove(path)
+        except OSError:
+            messagebox.showwarning("Delete failed", "파일 삭제에 실패했습니다.")
+            return
+
+        self._remove_selected()
 
     def _on_image_selected(self, event) -> None:
         selection = self.listbox.curselection()
@@ -388,11 +431,15 @@ class LabelingApp(tk.Tk):
                     self.current_annotation = json.load(f)
                 self.direction_var.set(self.current_annotation.get("direction", "N"))
                 self.show_direction_var.set(bool(self.current_annotation.get("show_direction", True)))
+                self.class_name_var.set(self.current_annotation.get("class_name", "object"))
+                self.class_id_var.set(int(self.current_annotation.get("class_id", 0)))
             except Exception:
                 self.current_annotation = {}
         else:
             self.direction_var.set("N")
             self.show_direction_var.set(True)
+            self.class_name_var.set("object")
+            self.class_id_var.set(0)
 
     def _save_annotation(self) -> None:
         if self.current_image_path is None:
@@ -404,6 +451,8 @@ class LabelingApp(tk.Tk):
             "bbox": self.current_annotation.get("bbox", [0, 0, 0, 0]),
             "direction": self.direction_var.get(),
             "show_direction": self.show_direction_var.get(),
+            "class_name": self.class_name_var.get(),
+            "class_id": int(self.class_id_var.get()),
             "image_path": image_path,
         }
         self.current_annotation = annotation
@@ -420,11 +469,12 @@ class LabelingApp(tk.Tk):
             cy = ((y1 + y2) / 2) / max(img_h, 1)
             width = abs(x2 - x1) / max(img_w, 1)
             height = abs(y2 - y1) / max(img_h, 1)
+            class_id = int(self.class_id_var.get())
             with open(label_path, "w", encoding="utf-8") as f:
-                f.write(f"0 {cx:.6f} {cy:.6f} {width:.6f} {height:.6f}\n")
+                f.write(f"{class_id} {cx:.6f} {cy:.6f} {width:.6f} {height:.6f}\n")
 
         self.annotation_info.set(
-            f"Saved: {os.path.basename(image_path)} | direction: {annotation['direction']}"
+            f"Saved: {os.path.basename(image_path)} | class: {self.class_name_var.get()} | dir: {annotation['direction']}"
         )
 
     def _load_annotation(self) -> None:
