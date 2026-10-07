@@ -13,26 +13,51 @@
 - 방향 오버레이 표시/비표시 체크박스
 - 이미지 실제 삭제 기능
 - YOLO 형식 텍스트 레이블 자동 저장
-- YOLO 모델 버전 선택
+- YOLO nano/small/medium/large/xlarge 계열 선택
+- 실제 Ultralytics에서 자주 쓰는 모델 버전 지원
 - best.pt 기반 자동 라벨링
 - 학습 실행 준비
 
-## 실행 방법
+## 바로 실행하는 방법
 
-1. 의존성 설치
+### 로컬에서 실행
+
+1. 폴더로 이동
    ```bash
-   python -m pip install -r requirements.txt
+   C:\Users\qweop\Desktop\new-repo
    ```
-2. 앱 실행
+2. 아래 중 하나를 더블클릭하거나 실행
    ```bash
-   python run_app.py
+   launch_labeling_app.bat
    ```
+   또는
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\launch_labeling_app.ps1
+   ```
+
+### Python 직접 실행
+
+```bash
+C:\Users\qweop\AppData\Local\Programs\Python\Python312\python.exe run_app.py
+```
+
+### 의존성 설치가 필요한 경우
+
+```bash
+C:\Users\qweop\AppData\Local\Programs\Python\Python312\python.exe -m pip install -r requirements.txt
+```
+
+## 저장소 링크
+
+- GitHub 저장소: https://github.com/wvvvvv0617-gif/labeling-project
+- 로컬 프로젝트 경로: C:\Users\qweop\Desktop\new-repo
 
 ## 프로젝트 구조
 
 - `app/labeling_app.py` : 메인 UI와 라벨링 로직
 - `run_app.py` : 실행 진입점
 - `requirements.txt` : 의존성 목록
+- `launch_labeling_app.bat` : 바로 실행용 Windows 배치 파일
 
 ## 참고
 
